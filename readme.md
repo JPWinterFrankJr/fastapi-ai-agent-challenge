@@ -18,8 +18,11 @@ python3.12 -m venv venv
 
 # 4. Ativação do Ambiente Virtual 'venv'
 source venv/bin/activate
+
 # 5. Instala as dependencias.
 pip install -r requirements.txt
+# 6. Iniciar o OLLAMA
+ollama serve
 
-# 6. Executa o agente 
-vicorn main:app --reload 
+# 7. Executa o agente 
+uvicorn main:app --reload 
