@@ -1,7 +1,7 @@
 # main.py
+
 import os
 import math
-import json # Adicionado para uso futuro, se necessário
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -9,7 +9,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 
 # Importações oficiais do Strands Agents SDK
-# CORREÇÃO 1: Importação correta do OllamaModel
 from strands import Agent, tool
 from strands.models.ollama import OllamaModel 
 
@@ -17,100 +16,93 @@ from strands.models.ollama import OllamaModel
 # 1. CONFIGURAÇÃO INICIAL
 # ----------------------------------------------------------------------
 
-# Carrega variáveis de ambiente do arquivo .env
 load_dotenv()
-
-# Configuração do FastAPI
 app = FastAPI(
     title="DreamSquad Chat API",
     description="API integrada com Strands Agents SDK e Ollama",
     version="1.0.0"
 )
-
-# Configuração do Jinja2 para ler arquivos na pasta 'templates'
-# Certifique-se de que a pasta 'templates' está no mesmo nível que 'main.py'
 templates = Jinja2Templates(directory="templates") 
 
-
 # ----------------------------------------------------------------------
-# 2. DEFINIÇÃO DA TOOL
+# 2. DEFINIÇÃO DA TOOL (CÁLCULO)
 # ----------------------------------------------------------------------
 
-# 2. DEFINIÇÃO DA TOOL
+SAFE_GLOBALS = {
+    "sqrt": math.sqrt, "sin": math.sin, "cos": math.cos, "tan": math.tan,
+    "log": math.log, "log10": math.log10, "pi": math.pi, "e": math.e,
+    "pow": math.pow, "round": round, "abs": abs,
+}
+
 @tool
-def calculator_tool(expression: str) -> float:
-    """Ferramenta de cálculo. Use a notação Python e o prefixo 'math.' para sqrt, log, etc.
-    
-    Exemplos: 'math.sqrt(144) * 10' ou '1234 + 5678'.
+def calculator_tool(expression: str) -> str:
+    """
+    Ferramenta de cálculo matemático. Use notação Python. 
+    Funções como 'sqrt', 'log' ou 'round' estão disponíveis sem o prefixo 'math.'.
+
+    Exemplos: 
+    'sqrt(144) * 10' 
+    '1234 + 5678'
     """
     try:
-        # Define um dicionário com funções seguras para o 'eval'
-        # Isso permite que o 'eval' use 'math.sqrt', 'math.pow', etc.
-        safe_globals = {"math": math}
+        result = eval(expression, {"__builtins__": None}, SAFE_GLOBALS)
         
-        # O eval usa o dicionário 'safe_globals' como contexto,
-        # permitindo o uso de 'math.sqrt()' na expressão.
-        result = eval(expression, {"__builtins__": None}, safe_globals)
-        return result
+        # Formatação para output limpo
+        if isinstance(result, (int, float)) and result == int(result):
+             return str(int(result))
+        
+        return str(result)
         
     except Exception as e:
-        # Isso será formatado como um erro, e o Agente terá que lidar com ele.
-        return f"Erro de cálculo: {e}"
+        return f"Erro de cálculo na expressão '{expression}': {e}"
+
 # ----------------------------------------------------------------------
-# 3. INICIALIZAÇÃO GLOBAL DO AGENTE (CORREÇÃO DO NameError)
+# 3. INICIALIZAÇÃO GLOBAL DO AGENTE COM PROMPT REFORÇADO (ÚLTIMA TENTATIVA)
 # ----------------------------------------------------------------------
 
-# Definição das variáveis de ambiente
 OLLAMA_HOST = os.getenv("OLLAMA_HOST")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
-
-# A variável 'agent_instance' é inicializada no escopo global
 agent_instance = None 
 
 if OLLAMA_HOST and OLLAMA_MODEL:
     try:
-        #Cria o modelo Ollama
-        ollama_model = OllamaModel(
-            model_id=OLLAMA_MODEL,
-            host=OLLAMA_HOST  # <--- CORRIGIDO: Troca de 'base_url' para 'host'
-        )
+        ollama_model = OllamaModel(model_id=OLLAMA_MODEL, host=OLLAMA_HOST)
 
-        # Cria o Agente com a tool e o modelo (Modelo 'mistral' é necessário para Tool Calling)
+        # PROMPT DE SISTEMA OBRIGANDO O USO DA TOOL E CITAÇÃO DO RESULTADO
+        SYSTEM_PROMPT = f"""
+Você é um assistente de IA prestativo, claro e objetivo. Seu nome é DreamSquad Agent.
+Seu objetivo é parecer **natural** e **evitar qualquer jargão técnico** ou menção a ferramentas no output.
+
+REGRAS RÍGIDAS DE CÁLCULO:
+1. Você DEVE usar EXCLUSIVAMENTE sua capacidade de cálculo para QUALQUER operação matemática. (Não mencione o nome desta capacidade/ferramenta no output.)
+2. Você NUNCA deve tentar calcular ou arredondar valores por conta própria.
+3. Para eliminar ambiguidades, SEMPRE use parênteses ( ) na expressão interna 
+   para garantir a ordem correta das operações.
+   Exemplo: Se o usuário diz 'raiz quadrada de 144 vezes 10', você deve gerar a expressão 'sqrt(144) * 10'.
+
+REGRAS RÍGIDAS DE RESPOSTA (O MAIS IMPORTANTE):
+4. Sua resposta final DEVE ser 100% fiel ao VALOR RETORNADO pelo cálculo.
+5. Você está ABSOLUTAMENTE PROIBIDO de mudar, modificar, arredondar, ou alucinar o número.
+6. Você está PROIBIDO de adicionar zeros ou multiplicar o resultado por 10, 100 ou 1000 ao reescrever.
+7. **Para cálculos, sua resposta DEVE ser direta e conversacional.** Ela deve incluir uma breve explicação do processo que levou ao resultado (Ex: "O cálculo envolveu primeiro achar a raiz quadrada de 144, que é 12, e depois multiplicar por 10.").
+8. Você está TERMINANTEMENTE PROIBIDO de incluir no output as seguintes frases ou palavras: "tool", "calculator_tool", "ferramenta", "código", "chamada de ferramenta", "busca de informações", "cálculo matemático", "resultado exato retornado pela ferramenta".
+9. **SE VOCÊ ESTIVER CALCULANDO**, sua resposta final é o resultado numérico e sua explicação conversacional, e nada mais.
+10. **PARA PERGUNTAS DE CONHECIMENTO GERAL:** Responda à pergunta diretamente e de forma completa, sem mencionar que você não está usando a ferramenta de cálculo ou que está realizando uma "busca de informações". Simplesmente responda ao tópico.
+
+Lembre-se: O número retornado pelo cálculo É A ÚNICA VERDADE. Use-o exatamente como é.
+"""
+        
         agent_instance = Agent(
             model=ollama_model,
             tools=[calculator_tool],
             name="DreamSquad Agent",
-            system_prompt="""
-Você é um assistente de IA prestativo, claro e objetivo.
-
-REGRAS PRINCIPAIS:
-1. Você SEMPRE deve usar exclusivamente a calculator_tool para QUALQUER operação matemática,
-   mesmo que seja extremamente simples (ex.: 1+1, 10*5, raiz quadrada, porcentagem, juros, etc).
-
-2. Você NUNCA deve calcular nada sozinho. 
-   Sempre que detectar um cálculo, gere imediatamente uma chamada da ferramenta calculator_tool.
-
-3. Sua resposta final ao usuário deve ser:
-   - Natural e conversacional
-   - Sem mostrar código, formatação técnica, chamadas de ferramenta ou detalhes internos
-
-4. Nunca repita a pergunta do usuário.
-
-5. Para perguntas gerais (ciência, história, explicações), responda normalmente sem usar a ferramenta.
-
-6. Se a calculator_tool retornar um erro, explique de forma amigável.
-
-7. Você está PROIBIDO de gerar valores numéricos derivados de operações matemáticas.
-   Apenas reescreva o resultado retornado pela ferramenta de maneira natural.
-"""
-             )
-        print(f"INFO: Agente de IA carregado com sucesso usando modelo: {OLLAMA_MODEL}")
+            system_prompt=SYSTEM_PROMPT
+        )
+        print(f"INFO: Agente de IA carregado com sucesso usando modelo: {OLLAMA_MODEL} em {OLLAMA_HOST}")
 
     except Exception as e:
-        print(f"ERRO CRÍTICO NA INICIALIZAÇÃO DO AGENTE: {e}. Verifique se o 'ollama serve' está rodando e se o modelo '{OLLAMA_MODEL}' foi baixado.")
-        # Se falhar, agent_instance permanece None para que o endpoint retorne 503
-# ----------------------------------------------------------------------
-
+        print(f"ERRO CRÍTICO NA INICIALIZAÇÃO DO AGENTE: {e}")
+        print("Verifique se o 'ollama serve' está rodando e se o modelo foi baixado.")
 
 # ----------------------------------------------------------------------
 # 4. MODELOS DE DADOS (Pydantic)
@@ -122,67 +114,46 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
 
-
 # ----------------------------------------------------------------------
 # 5. ENDPOINTS DA API
 # ----------------------------------------------------------------------
 
-# main.py
-
-
-# Endpoint POST para comunicação da API de chat
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint_api(request: ChatRequest):
-    # Verifica se o agente foi inicializado com sucesso
     if not agent_instance:
-        raise HTTPException(
-            status_code=503, 
-            detail="Agente não disponível. O Ollama Server falhou ao carregar."
-        )
+        raise HTTPException(status_code=503, detail="Agente não disponível.")
 
     try:
-        # Tenta a chamada normal do agente
         result = agent_instance(request.message) 
+        response_text = ""
         
-        # --- LÓGICA DE TRATAMENTO DE TOOL CALL MANUAL CORRIGIDA ---
-        
-        # Verifica se o resultado é uma lista de Tool Calls
-        if isinstance(result, list) and result and "name" in result[0]:
-            tool_call = result[0]
+        if isinstance(result, list) and result and isinstance(result[0], dict) and result[0].get("name"):
             
-            # Trata o uso de tool para cálculo
-            if tool_call["name"] == "calculator_tool":
+            tool_call = result[0]
+            tool_name = tool_call["name"]
+            
+            if tool_name == "calculator_tool":
                 expression = tool_call["arguments"].get("expression")
-                
-                # Executa a tool para obter o resultado (e.g., 120.0)
                 tool_result = calculator_tool(expression)
                 
-                # CHAVE DA CORREÇÃO: Alimentar o Agente com o resultado da ferramenta.
-                # O Agente usa o resultado (tool_result) para gerar uma resposta natural e conversacional.
+                # Segunda chamada ao Agente (Loop Back)
                 response_text = agent_instance(
-                    request.message, # Mensagem original
-                    tool_result=tool_result, # Resultado da ferramenta
-                    tool_name="calculator_tool" # Nome da ferramenta
+                    request.message, 
+                    tool_result=tool_result, 
+                    tool_name=tool_name
                 )
-
             else:
-                # Se o LLM alucinar uma tool que não existe
-                response_text = f"Desculpe, não consegui processar a sua solicitação. O Agente tentou usar a ferramenta '{tool_call['name']}' de forma incorreta."
+                 response_text = f"Desculpe, não consigo usar a ferramenta '{tool_name}'. Eu só sei calcular."
         
         else:
-            # Se não é um Tool Call, é uma resposta conversacional
             response_text = result if isinstance(result, str) else str(result)
-        
+            
         return ChatResponse(response=response_text)
         
     except Exception as e:
-        # Captura qualquer erro
         raise HTTPException(status_code=500, detail=f"Erro no processamento do Agente: {str(e)}")
 
 
-# Endpoint GET para o Frontend
 @app.get("/", response_class=HTMLResponse)
 async def get_chat_page(request: Request):
-    """Renderiza a página HTML do chat."""
-    # O TemplateResponse procura 'index.html' no diretório 'templates'
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "title": "DreamSquad Chat Agent"})
