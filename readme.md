@@ -13,22 +13,36 @@ git clone https://github.com/JPWinterFrankJr/fastapi-ai-agent-challenge.git; cd 
 ```
 ## 1.2 Cria o ambiente virtual e Ativar o Ambiente Virtual
  ### Cria o ambiente virtual
- python3.12 -m venv .venv
- ### Ativa o ambiente virtual (Linux/macOS) 
+ ```python
+ python3.12 -m venv .venv 
+ ```
+ ### Ativa o ambiente virtual (Linux/macOS)
+```python
  source .venv/bin/activate
+ ```
  ### Instalar python 3 no ambiente virtual
+```python
  sudo apt install python3
+ ```
 
 ## 1.3 Instalar as dependencias.
+```python
 pip install -r requirements.txt
+```
 # 2. Configuração do Ollama e Variáveis de Ambiente
 ## 2.1. Verificar se o ollama está instalado
+```python
 ollama list
+```
 ## 2.2. Configurar no arquivo .env o modelo e o host do Ollama
  OLLAMA_HOST: Endereço do servidor Ollama.
  ### Host padrão do ollama
+ ```python
  OLLAMA_HOST=http://127.0.0.1:11434 
 
  OLLAMA_MODEL=mistral
-# 3. Executar o agente 
+ ```
+# 3. Executar o agente
+ ```python
 uvicorn main:app --reload 
+```
