@@ -24,6 +24,8 @@ git clone https://github.com/JPWinterFrankJr/fastapi-ai-agent-challenge.git; cd 
 ```python
  sudo apt install python3
  ```
+ ### Criar um arquivo .env
+ E colocar o como model o modelo mistral e o host padrão do OLLAMA
 
 ## 1.3 Instalar as dependencias.
 ```python
@@ -42,7 +44,16 @@ ollama list
 
  OLLAMA_MODEL=mistral
  ```
-# 3. Executar o agente
+# 3. Executar o servidor FastAPI
  ```python
 uvicorn main:app --reload 
 ```
+
+# 3.1 Reinicie o terminal 
+execute novamente o servidor FastAPI
+
+ ```python
+uvicorn main:app --reload 
+```
+
+E assim o agente irá funcionar da melhor maneira possível
