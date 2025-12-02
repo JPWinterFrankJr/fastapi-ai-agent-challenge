@@ -8,8 +8,9 @@ Siga os passos abaixo para configurar o ambiente de desenvolvimento e executar o
 # 1. Configuração do Ambiente e  Instalação
 
 ## 1.1 Clonar o Repositório
-'''git clone https://github.com/JPWinterFrankJr/fastapi-ai-agent-challenge.git; cd fastapi-ai-agent-challenge'''
-
+```python
+git clone https://github.com/JPWinterFrankJr/fastapi-ai-agent-challenge.git; cd fastapi-ai-agent-challenge
+```
 ## 1.2 Cria o ambiente virtual e Ativar o Ambiente Virtual
  ### Cria o ambiente virtual
  python3.12 -m venv .venv
