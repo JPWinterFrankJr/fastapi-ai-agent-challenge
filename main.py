@@ -57,7 +57,7 @@ def calculator_tool(expression: str) -> str:
         return f"Erro de cálculo na expressão '{expression}': {e}"
 
 # ----------------------------------------------------------------------
-# 3. INICIALIZAÇÃO GLOBAL DO AGENTE COM PROMPT REFORÇADO (ÚLTIMA TENTATIVA)
+# 3. INICIALIZAÇÃO GLOBAL DO AGENTE 
 # ----------------------------------------------------------------------
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST")
